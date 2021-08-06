@@ -6,27 +6,39 @@ const md5 = require('md5')
 const cors = require('cors')
 
 const app = express()
+
 app.use(cors())
+
 app.use(express.urlencoded()); //Parse URL-encoded bodies
+app.use(express.json()); //Parse JSON-encoded bodies
+
 app.use(express.static(__dirname + "/public"));
 app.use('/img', express.static(path.join(__dirname, 'img')))
 
 
-async function download(url, filename) {
-    const response = await fetch(url)
-    const buffer = await response.buffer()
-    fs.writeFile(filename, buffer, () =>
-        console.log(`${url} saved to ${filename}`));
+function localPath(url) {
+    return './img/' + md5(url) + '.jpg'
 }
 
-// url
+function webPath(url) {
+    return '/img/' + md5(url) + '.jpg'
+}
+
+async function download(url, path) {
+    const response = await fetch(url)
+    const buffer = await response.buffer()
+    fs.writeFile(path, buffer, function () {
+        console.log(`${url} saved to ${path}`)
+    })
+}
+
 app.post('/api/save', async function (req, res) {
     const url = req.body.url
     if (!url) {
         res.json({ error: 'url is required' })
     } else {
-        await download(url, './img/first.jpg')
-        res.send('done')
+        await download(url, localPath(url))
+        res.send({ ok: webPath(url) })
     }
 })
 
@@ -37,25 +49,22 @@ app.get('/api/cdn', async function (req, res) {
         return
     }
 
-    filename = md5(url) + '.jpg'
-    localPath = './img/' + filename
-    webPath = '/img/' + filename
+    path = localPath(url)
 
-    if (!fs.existsSync(localPath)) {
+    if (!fs.existsSync(path)) {
         console.log('Downloading file...')
-        await download(url, localPath)
+        await download(url, path)
     } else {
-        console.log(`File ${localPath} exists`)
+        console.log(`File ${path} exists`)
     }
 
-    res.redirect(webPath)
+    res.redirect(webPath(url))
 })
 
 const port = 6869
 const server = app.listen(port, function () {
     console.log(`Listening on port ${port}`)
 })
-
 
 
 // The signals we want to handle
